@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>scrcpy — flantastic</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0f1115; color: #e6e9ef;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+      background: #171a21; border-bottom: 1px solid #2a2f3a; flex-wrap: wrap; }
+    #bar .title { font-weight: 600; font-size: 14px; }
+    #status { font-size: 13px; color: #8a91a0; }
+    #status.ok { color: #3ecf8e; }
+    #status.err { color: #ff5c5c; }
+    #stage { display: flex; align-items: center; justify-content: center;
+      height: calc(100% - 46px); background: #000; overflow: hidden; }
+    canvas { max-width: 100%; max-height: 100%; touch-action: none; cursor: crosshair; }
+    button, input { background: #1e222b; color: #e6e9ef; border: 1px solid #2a2f3a;
+      border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+    input { cursor: text; }
+    .spacer { flex: 1; }
+    .warn { color: #f5a623; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <span class="title" id="title">scrcpy</span>
+    <span id="status">connecting…</span>
+    <span class="spacer"></span>
+    <button data-key="back">◀ Back</button>
+    <button data-key="home">● Home</button>
+    <button data-key="appswitch">■ Recents</button>
+    <input id="text-input" placeholder="type & Enter…" size="14" />
+    <button id="reconnect">Reconnect</button>
+  </div>
+  <div id="stage"><canvas id="screen"></canvas></div>
+  <script type="module" src="/scrcpy.js"></script>
+</body>
+</html>

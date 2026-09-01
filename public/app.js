@@ -1,16 +1,18 @@
 'use strict';
 
 const $ = (sel, root = document) => root.querySelector(sel);
-const serversEl = $('#servers');
+const endpointsEl = $('#endpoints');
 const errorEl = $('#error');
 const statusLine = $('#status-line');
 const emptyEl = $('#empty');
 
-let servers = [];
-let refreshTimer = null;
+let endpoints = [];
+let timer = null;
+
+const TYPE_LABEL = { mac: 'Mac / tart', vnc: 'VNC', proxmox: 'Proxmox', android: 'Android' };
 
 function showError(msg) {
-  errorEl.textContent = msg;
+  errorEl.textContent = msg || '';
   errorEl.hidden = !msg;
 }
 
@@ -22,99 +24,96 @@ async function api(method, url) {
   return body;
 }
 
-function stateBadge(state) {
-  const map = {
-    running: ['running', 'ok'],
-    stopped: ['stopped', 'off'],
-    suspended: ['suspended', 'warn'],
-  };
-  return map[state] || [state, 'off'];
+function stateClass(state) {
+  if (['running', 'online', 'available', 'device'].includes(state)) return 'ok';
+  if (['stopped', 'offline', 'unauthorized'].includes(state)) return 'off';
+  return 'warn';
 }
 
-async function loadServers() {
-  const data = await api('GET', '/api/servers');
-  servers = data.servers;
-  emptyEl.hidden = servers.length > 0;
-
-  serversEl.innerHTML = '';
-  for (const s of servers) {
-    const node = $('#server-tpl').content.cloneNode(true);
-    const section = $('.server', node);
-    section.dataset.sid = s.id;
-    $('.server-label', node).textContent = s.label;
-    $('.server-host', node).textContent = s.host;
-    serversEl.appendChild(node);
+async function loadEndpoints() {
+  const { endpoints: eps } = await api('GET', '/api/endpoints');
+  endpoints = eps;
+  emptyEl.hidden = eps.length > 0;
+  endpointsEl.innerHTML = '';
+  for (const e of eps) {
+    const node = $('#endpoint-tpl').content.cloneNode(true);
+    $('.endpoint', node).dataset.eid = e.id;
+    $('.type-badge', node).textContent = TYPE_LABEL[e.type] || e.type;
+    $('.type-badge', node).classList.add('t-' + e.type);
+    $('.endpoint-label', node).textContent = e.label;
+    $('.endpoint-host', node).textContent = e.host || '';
+    endpointsEl.appendChild(node);
   }
 }
 
-async function refreshServer(s) {
-  const section = serversEl.querySelector(`.server[data-sid="${CSS.escape(s.id)}"]`);
+async function refreshEndpoint(e) {
+  const section = endpointsEl.querySelector(`.endpoint[data-eid="${CSS.escape(e.id)}"]`);
   if (!section) return;
   const grid = $('.grid', section);
-  const errEl = $('.server-error', section);
+  const errEl = $('.endpoint-error', section);
   try {
-    const { vms } = await api('GET', `/api/servers/${encodeURIComponent(s.id)}/vms`);
+    const { items } = await api('GET', `/api/endpoints/${encodeURIComponent(e.id)}/items`);
     errEl.hidden = true;
-    renderVMs(grid, s, vms);
+    renderItems(grid, e, items);
   } catch (err) {
-    errEl.textContent = `Could not reach ${s.label}: ${err.message}`;
+    errEl.textContent = `Could not reach ${e.label}: ${err.message}`;
     errEl.hidden = false;
     grid.innerHTML = '';
   }
 }
 
-function renderVMs(grid, server, vms) {
+function renderItems(grid, endpoint, items) {
   grid.innerHTML = '';
-  if (vms.length === 0) {
+  if (!items.length) {
     const p = document.createElement('p');
     p.className = 'muted';
-    p.textContent = 'No local VMs on this Mac.';
+    p.textContent = 'Nothing to show here.';
     grid.appendChild(p);
     return;
   }
-  for (const vm of vms) {
+  for (const it of items) {
     const node = $('#card-tpl').content.cloneNode(true);
-    const card = $('.card', node);
-    const [label, cls] = stateBadge(vm.state);
-    const running = vm.state === 'running';
-
-    $('.name', node).textContent = vm.name;
+    const cls = stateClass(it.state);
+    $('.name', node).textContent = it.name;
     const badge = $('.state', node);
-    badge.textContent = label;
+    badge.textContent = it.state;
     badge.classList.add(cls);
     $('.dot', node).classList.add(cls);
+    const detail = $('.card-detail', node);
+    if (it.detail) detail.textContent = it.detail; else detail.remove();
 
+    const caps = it.capabilities || {};
     const startBtn = $('.start', node);
     const stopBtn = $('.stop', node);
-    const vncBtn = $('.vnc', node);
+    const connectBtn = $('.connect', node);
 
-    startBtn.disabled = running;
-    stopBtn.disabled = !running;
-    vncBtn.disabled = !running;
+    if (!caps.start && !caps.stop) { startBtn.remove(); stopBtn.remove(); }
+    else { startBtn.disabled = !caps.start; stopBtn.disabled = !caps.stop; }
+    connectBtn.disabled = !caps.connect;
 
-    startBtn.addEventListener('click', () => act(startBtn, server, vm.name, 'start'));
-    stopBtn.addEventListener('click', () => act(stopBtn, server, vm.name, 'stop'));
-    vncBtn.addEventListener('click', () => {
-      const url = `/vnc.html?sid=${encodeURIComponent(server.id)}&vm=${encodeURIComponent(vm.name)}`;
-      window.open(url, `vnc-${server.id}-${vm.name}`);
+    startBtn && startBtn.addEventListener('click', () => act(startBtn, endpoint, it.id, 'start'));
+    stopBtn && stopBtn.addEventListener('click', () => act(stopBtn, endpoint, it.id, 'stop'));
+    connectBtn.addEventListener('click', () => {
+      const viewer = it.viewer === 'scrcpy' ? 'scrcpy.html' : 'vnc.html';
+      const url = `/${viewer}?eid=${encodeURIComponent(endpoint.id)}&iid=${encodeURIComponent(it.id)}&name=${encodeURIComponent(it.name)}`;
+      window.open(url, `view-${endpoint.id}-${it.id}`);
     });
 
     grid.appendChild(node);
   }
 }
 
-async function act(btn, server, vm, action) {
+async function act(btn, endpoint, iid, action) {
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = action === 'start' ? 'Starting…' : 'Stopping…';
   showError('');
   try {
-    await api('POST', `/api/servers/${encodeURIComponent(server.id)}/vms/${encodeURIComponent(vm)}/${action}`);
-    // Give tart a moment, then refresh this server a few times to catch state.
-    setTimeout(() => refreshServer(server), 1500);
-    setTimeout(() => refreshServer(server), 4000);
+    await api('POST', `/api/endpoints/${encodeURIComponent(endpoint.id)}/items/${encodeURIComponent(iid)}/${action}`);
+    setTimeout(() => refreshEndpoint(endpoint), 1500);
+    setTimeout(() => refreshEndpoint(endpoint), 4500);
   } catch (err) {
-    showError(`${action} ${vm}: ${err.message}`);
+    showError(`${action} ${iid}: ${err.message}`);
     btn.textContent = original;
     btn.disabled = false;
   }
@@ -122,19 +121,19 @@ async function act(btn, server, vm, action) {
 
 async function refreshAll() {
   statusLine.textContent = 'Refreshing…';
-  await Promise.all(servers.map(refreshServer));
+  await Promise.all(endpoints.map(refreshEndpoint));
   statusLine.textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 
 async function init() {
   try {
-    await loadServers();
+    await loadEndpoints();
     await refreshAll();
   } catch (err) {
     showError(err.message);
   }
-  clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshAll, 8000);
+  clearInterval(timer);
+  timer = setInterval(refreshAll, 8000);
 }
 
 $('#refresh').addEventListener('click', refreshAll);

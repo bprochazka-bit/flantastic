@@ -1,7 +1,7 @@
 {
   "name": "flantastic",
-  "version": "1.0.0",
-  "description": "Web app (runs on Debian/Linux) to start/stop tart VMs on one or more Macs over SSH, and connect to their VNC service from a browser.",
+  "version": "2.0.0",
+  "description": "Zero-dependency web app (runs on Debian/Linux) to manage and view remote machines: tart VMs on Macs (SSH), generic VNC endpoints (e.g. iPhone/iOS), Proxmox guests, and Android devices (scrcpy).",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
@@ -10,10 +10,5 @@
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {
-    "@novnc/novnc": "^1.4.0",
-    "express": "^4.19.2",
-    "ssh2": "^1.15.0",
-    "ws": "^8.18.0"
-  }
+  "dependencies": {}
 }

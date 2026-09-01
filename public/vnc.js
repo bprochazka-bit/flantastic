@@ -1,14 +1,14 @@
-import RFB from '/novnc/core/rfb.js';
+import RFB from '/vendor/novnc/core/rfb.js';
 
 const params = new URLSearchParams(location.search);
-const sid = params.get('sid');
-const vm = params.get('vm');
+const eid = params.get('eid');
+const iid = params.get('iid');
+const name = params.get('name') || iid;
 
 const statusEl = document.getElementById('status');
-const titleEl = document.getElementById('title');
+document.getElementById('title').textContent = name;
+document.title = `${name} — VNC`;
 const screenEl = document.getElementById('screen');
-titleEl.textContent = `${vm} @ ${sid}`;
-document.title = `${vm} — VNC`;
 
 let rfb = null;
 
@@ -18,50 +18,39 @@ function setStatus(text, cls = '') {
 }
 
 async function connect() {
-  if (rfb) {
-    try { rfb.disconnect(); } catch (_) {}
-    rfb = null;
-  }
+  if (rfb) { try { rfb.disconnect(); } catch (_) {} rfb = null; }
   screenEl.innerHTML = '';
-  setStatus('fetching credentials…');
+  setStatus('requesting console…');
 
-  let creds = {};
+  let info;
   try {
-    const res = await fetch(`/api/servers/${encodeURIComponent(sid)}/vms/${encodeURIComponent(vm)}/vnc`);
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error || res.statusText);
-    creds = body;
+    const res = await fetch(`/api/endpoints/${encodeURIComponent(eid)}/items/${encodeURIComponent(iid)}/connect`);
+    info = await res.json();
+    if (!res.ok) throw new Error(info.error || res.statusText);
   } catch (err) {
-    setStatus(`error: ${err.message}`, 'err');
-    return;
+    return setStatus(`error: ${err.message}`, 'err');
   }
 
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${location.host}/vnc-ws/${encodeURIComponent(sid)}/${encodeURIComponent(vm)}`;
+  let url = `${proto}://${location.host}/ws/${encodeURIComponent(eid)}/${encodeURIComponent(iid)}`;
+  if (info.session) url += `?session=${encodeURIComponent(info.session)}`;
 
   setStatus('connecting…');
   try {
-    rfb = new RFB(screenEl, url, {
-      credentials: { password: creds.password || '' },
-    });
+    rfb = new RFB(screenEl, url, { credentials: { password: info.password || '' } });
   } catch (err) {
-    setStatus(`error: ${err.message}`, 'err');
-    return;
+    return setStatus(`error: ${err.message}`, 'err');
   }
-
   rfb.scaleViewport = true;
   rfb.resizeSession = false;
 
   rfb.addEventListener('connect', () => setStatus('connected', 'ok'));
-  rfb.addEventListener('disconnect', (e) => {
-    setStatus(e.detail && e.detail.clean ? 'disconnected' : 'connection lost', 'err');
-  });
-  rfb.addEventListener('credentialsrequired', () => {
-    rfb.sendCredentials({ password: creds.password || '' });
-  });
-  rfb.addEventListener('securityfailure', (e) => {
-    setStatus(`auth failed: ${(e.detail && e.detail.reason) || ''}`, 'err');
-  });
+  rfb.addEventListener('disconnect', (e) =>
+    setStatus(e.detail && e.detail.clean ? 'disconnected' : 'connection lost', 'err'));
+  rfb.addEventListener('credentialsrequired', () =>
+    rfb.sendCredentials({ password: info.password || '' }));
+  rfb.addEventListener('securityfailure', (e) =>
+    setStatus(`auth failed: ${(e.detail && e.detail.reason) || ''}`, 'err'));
 }
 
 document.getElementById('reconnect').addEventListener('click', connect);

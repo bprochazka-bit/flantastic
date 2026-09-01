@@ -1,5 +1,12 @@
-node_modules/
+# Local config (contains hosts / credentials)
+endpoints.json
 servers.json
+
+# Runtime
 *.log
-.DS_Store
 .env
+.DS_Store
+
+# In case anyone runs npm here — flantastic needs no dependencies
+node_modules/
+package-lock.json

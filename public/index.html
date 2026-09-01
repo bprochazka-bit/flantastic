@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>flantastic — VM control</title>
+  <title>flantastic — remote control</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -17,15 +17,19 @@
 
   <main>
     <div id="error" class="error" hidden></div>
-    <div id="servers"></div>
-    <p id="empty" class="muted" hidden>No Macs configured. Copy <code>servers.example.json</code> to <code>servers.json</code> and add your Macs.</p>
+    <div id="endpoints"></div>
+    <p id="empty" class="muted" hidden>No endpoints configured. Copy <code>endpoints.example.json</code> to <code>endpoints.json</code> and add your machines.</p>
   </main>
 
-  <template id="server-tpl">
-    <section class="server">
-      <h2 class="server-title"><span class="server-label"></span> <span class="server-host muted"></span></h2>
+  <template id="endpoint-tpl">
+    <section class="endpoint">
+      <h2 class="endpoint-title">
+        <span class="type-badge"></span>
+        <span class="endpoint-label"></span>
+        <span class="endpoint-host muted"></span>
+      </h2>
       <div class="grid"></div>
-      <p class="server-error error" hidden></p>
+      <p class="endpoint-error error" hidden></p>
     </section>
   </template>
 
@@ -36,10 +40,11 @@
         <span class="name"></span>
         <span class="state badge"></span>
       </div>
+      <div class="card-detail muted"></div>
       <div class="card-actions">
         <button class="btn start">Start</button>
         <button class="btn stop">Stop</button>
-        <button class="btn primary vnc">Connect VNC</button>
+        <button class="btn primary connect">Connect</button>
       </div>
     </div>
   </template>

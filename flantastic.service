@@ -1,5 +1,5 @@
 [Unit]
-Description=flantastic — tart VM control web app
+Description=flantastic — remote machine control web app
 After=network-online.target
 Wants=network-online.target
 
@@ -15,11 +15,15 @@ RestartSec=5
 # --- Configuration -------------------------------------------------------
 Environment=HOST=0.0.0.0
 Environment=PORT=8080
-Environment=SERVERS_FILE=/opt/flantastic/servers.json
+Environment=ENDPOINTS_FILE=/opt/flantastic/endpoints.json
 # Strongly recommended when bound to 0.0.0.0:
 # Environment=AUTH_USER=admin
 # Environment=AUTH_PASSWORD=change-me
-# If your SSH key needs the agent instead of a key file:
+# TLS (required for Android/scrcpy from remote machines — WebCodecs needs a
+# secure context). Point these at a cert/key readable by this user:
+# Environment=TLS_CERT=/opt/flantastic/tls/cert.pem
+# Environment=TLS_KEY=/opt/flantastic/tls/key.pem
+# If SSH endpoints need the agent instead of a key file:
 # Environment=SSH_AUTH_SOCK=/run/user/1000/keyring/ssh
 
 [Install]

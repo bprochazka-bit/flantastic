@@ -1,0 +1,67 @@
+{
+  "endpoints": [
+    {
+      "id": "mac1",
+      "type": "mac",
+      "label": "Mac mini (office)",
+      "host": "10.0.0.50",
+      "port": 22,
+      "username": "brandon",
+      "privateKey": "~/.ssh/id_ed25519",
+      "tart": "tart"
+    },
+
+    {
+      "id": "iphone",
+      "type": "vnc",
+      "label": "iPhone 17 (iOS 27)",
+      "host": "10.0.0.71",
+      "port": 5900,
+      "password": "secret",
+      "_comment": "For a device on a private LAN, reach it through an SSH gateway instead of connecting directly:",
+      "gateway": null
+    },
+
+    {
+      "id": "iphone-via-mac",
+      "type": "vnc",
+      "label": "iPad (through the Mac)",
+      "host": "10.0.0.72",
+      "port": 5900,
+      "password": "secret",
+      "gateway": {
+        "host": "10.0.0.50",
+        "port": 22,
+        "username": "brandon",
+        "privateKey": "~/.ssh/id_ed25519"
+      }
+    },
+
+    {
+      "id": "pve",
+      "type": "proxmox",
+      "label": "Proxmox cluster",
+      "host": "10.0.0.10",
+      "port": 8006,
+      "verifyTls": false,
+      "tokenId": "flantastic@pve!api",
+      "tokenSecret": "00000000-0000-0000-0000-000000000000",
+      "_comment": "Or use username/password instead of a token:",
+      "username": null,
+      "password": null,
+      "realm": "pam",
+      "node": null
+    },
+
+    {
+      "id": "phones",
+      "type": "android",
+      "label": "Android devices",
+      "adb": "adb",
+      "maxSize": 1280,
+      "maxFps": 30,
+      "_comment": "adbHost lets flantastic `adb connect` to a networked device first:",
+      "adbHost": null
+    }
+  ]
+}

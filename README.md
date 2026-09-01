@@ -1,95 +1,114 @@
 # flantastic
 
-A small web app for starting, stopping, and connecting to
-[`tart`](https://tart.run) VMs on one or more Macs — from your browser.
+A single web app to manage and view your remote machines from a browser:
 
-The app runs on a **Linux box (e.g. Debian 13)** and drives each Mac **over
-SSH**. VNC is tunnelled through the same SSH connection and rendered in the
-browser with [noVNC](https://novnc.com), so **only this web app needs to be
-reachable from remote machines** — nothing on the Macs has to be exposed.
+- **Macs** — start/stop [`tart`](https://tart.run) VMs over SSH and view them via VNC
+- **VNC devices** — any VNC server by `host:port`, e.g. an **iPhone/iPad running iOS with its VNC server enabled**
+- **Proxmox** — list, start/stop, and open the console for QEMU VMs and LXC containers
+- **Android** — mirror and control devices via **scrcpy** (H.264, decoded in the browser)
+
+It runs on a **Linux host (e.g. Debian 13)** and is designed to be reachable
+from remote machines (binds `0.0.0.0`). Everything is proxied through this one
+app, so the machines it controls don't need to be exposed themselves.
 
 ```
-browser ──HTTP/WebSocket──▶ flantastic (Debian) ──SSH──▶ Mac ──▶ tart VM (VNC)
+browser ──HTTP/WebSocket──▶ flantastic (Debian) ──▶ SSH / adb / Proxmox API ──▶ your machines
 ```
 
-## What it does
+## No `npm install`
 
-- Lists local VMs on each Mac and their state (via `tart list`).
-- **Start** a VM using your command:
-  `nohup tart run <vm> --no-graphics --vnc-experimental > ~/vnc-<vm>.log 2>&1 &`
-- **Stop** a VM (`tart stop <vm>`).
-- **Connect VNC** — opens an in-browser VNC viewer. flantastic reads the
-  `vnc://` URL that tart writes to `~/vnc-<vm>.log`, tunnels that port over
-  SSH, and hands the auto-generated password to the browser.
-
-## Requirements
-
-- **Linux host:** Node.js 18+.
-- **Each Mac:** Apple Silicon, `tart` installed, and SSH enabled
-  (System Settings → General → Sharing → Remote Login). Key-based SSH auth
-  is strongly recommended.
-
-## Setup
+flantastic uses **only Node.js built-ins** — no Node packages to install. The
+browser VNC client (noVNC) is **vendored** into the repo, and the Android
+scrcpy server binary ships in `vendor/`. The only things you need are Node and,
+depending on which endpoints you use, a couple of system packages:
 
 ```bash
-git clone <this repo>
-cd flantastic
-npm install
-
-cp servers.example.json servers.json
-$EDITOR servers.json          # add your Mac(s)
+sudo apt update
+sudo apt install -y nodejs            # the runtime
+sudo apt install -y openssh-client    # for "mac" and gatewayed "vnc" endpoints
+sudo apt install -y adb               # for "android" endpoints (a.k.a. android-tools-adb)
 ```
 
-`servers.json` — add one entry per Mac (add more later for extra Macs):
+Then just:
 
+```bash
+git clone <this repo> && cd flantastic
+cp endpoints.example.json endpoints.json
+$EDITOR endpoints.json
+node server.js         # → http://<host>:8080
+```
+
+## Configuring endpoints
+
+Everything is driven by `endpoints.json` (see `endpoints.example.json` for a
+full sample of all four types). It's a list of endpoints, each with a `type`.
+
+### `mac` — tart VMs over SSH
 ```json
-{
-  "servers": [
-    {
-      "id": "mac1",
-      "label": "Mac mini (office)",
-      "host": "10.0.0.50",
-      "port": 22,
-      "username": "brandon",
-      "privateKey": "~/.ssh/id_ed25519",
-      "tart": "tart"
-    }
-  ]
-}
+{ "id": "mac1", "type": "mac", "label": "Mac mini", "host": "10.0.0.50",
+  "username": "brandon", "privateKey": "~/.ssh/id_ed25519", "tart": "tart" }
+```
+Discovers VMs with `tart list`. **Start** runs your command
+(`nohup tart run <vm> --no-graphics --vnc-experimental > ~/vnc-<vm>.log 2>&1 &`),
+**Stop** runs `tart stop`. The VM's VNC is tunnelled over the same SSH
+connection — nothing on the Mac needs to bind to `0.0.0.0`.
+Enable Remote Login on the Mac (System Settings → General → Sharing).
+
+> `tart` is usually at `/opt/homebrew/bin`; flantastic prepends that (and
+> `/usr/local/bin`) to `PATH` for the non-interactive SSH shell. Override the
+> binary with the `tart` field if needed.
+
+### `vnc` — any VNC server (e.g. iPhone / iOS 27)
+```json
+{ "id": "iphone", "type": "vnc", "label": "iPhone", "host": "10.0.0.71",
+  "port": 5900, "password": "secret" }
+```
+Connects straight to a VNC server. For a device on a private LAN, reach it
+through an SSH gateway instead of connecting directly:
+```json
+{ "id": "ipad", "type": "vnc", "host": "10.0.0.72", "port": 5900,
+  "gateway": { "host": "10.0.0.50", "username": "brandon", "privateKey": "~/.ssh/id_ed25519" } }
 ```
 
-| Field        | Notes |
-|--------------|-------|
-| `id`         | Unique short id (used in URLs). |
-| `label`      | Display name in the UI. |
-| `host`/`port`| SSH address of the Mac. |
-| `username`   | SSH user on the Mac. |
-| `privateKey` | Path to an SSH private key. Omit to use `password`, or the `ssh-agent` (`SSH_AUTH_SOCK`). |
-| `passphrase` | Passphrase for the key, if any. |
-| `password`   | SSH password (use a key instead where possible). |
-| `tart`       | Path to the `tart` binary. Defaults to `tart`; flantastic also prepends `/opt/homebrew/bin` and `/usr/local/bin` to `PATH`, which covers a standard Homebrew install. |
-
-## Run
-
-```bash
-npm start
-# → http://<debian-host>:8080
+### `proxmox` — QEMU + LXC guests
+```json
+{ "id": "pve", "type": "proxmox", "label": "Proxmox", "host": "10.0.0.10",
+  "port": 8006, "verifyTls": false,
+  "tokenId": "flantastic@pve!api", "tokenSecret": "xxxxxxxx-...." }
 ```
+Lists guests across all nodes (or set `"node"` to pin one), starts/stops them,
+and opens the console in-browser via Proxmox's `vncproxy` (flantastic relays the
+VNC WebSocket). Use an **API token** (recommended) or `username`/`password`
+(+ `realm`, default `pam`). Proxmox uses a self-signed cert by default, so
+`verifyTls` defaults to `false`.
 
-Environment variables:
+### `android` — scrcpy
+```json
+{ "id": "phones", "type": "android", "label": "Android", "adb": "adb",
+  "maxSize": 1280, "maxFps": 30 }
+```
+Lists devices from `adb devices`. **Connect** pushes the vendored scrcpy server
+to the device, streams H.264, and decodes it in the browser with **WebCodecs**;
+touch, on-screen keys (Back/Home/Recents), and text input are sent back. Set
+`"adbHost": "1.2.3.4:5555"` to `adb connect` a networked device first.
 
-| Var             | Default            | Purpose |
-|-----------------|--------------------|---------|
-| `HOST`          | `0.0.0.0`          | Bind address. `0.0.0.0` makes it reachable from remote machines. |
-| `PORT`          | `8080`             | Listen port. |
-| `SERVERS_FILE`  | `./servers.json`   | Path to the servers config. |
-| `AUTH_USER`     | `admin`            | Basic-auth username (only if a password is set). |
-| `AUTH_PASSWORD` | *(unset)*          | If set, the whole app requires HTTP Basic auth. |
+> **WebCodecs requires a secure context.** Android/scrcpy works over
+> `http://localhost`, but from a remote machine you must serve flantastic over
+> **HTTPS** (see TLS below). The other endpoint types work over plain HTTP.
 
-### Run as a service (Debian)
+## Running
 
-An example unit is in [`flantastic.service`](./flantastic.service):
+| Env var         | Default          | Purpose |
+|-----------------|------------------|---------|
+| `HOST`          | `0.0.0.0`        | Bind address (remote-reachable by default). |
+| `PORT`          | `8080`           | Listen port. |
+| `ENDPOINTS_FILE`| `./endpoints.json` | Path to the config. |
+| `AUTH_USER`     | `admin`          | Basic-auth user (only if a password is set). |
+| `AUTH_PASSWORD` | *(unset)*        | If set, the whole app requires HTTP Basic auth. |
+| `TLS_CERT` / `TLS_KEY` | *(unset)* | PEM cert/key paths. If both set, flantastic serves HTTPS (and WebSockets upgrade to `wss://`). |
 
+### As a systemd service (Debian)
+See [`flantastic.service`](./flantastic.service):
 ```bash
 sudo cp -r . /opt/flantastic
 sudo cp flantastic.service /etc/systemd/system/
@@ -97,20 +116,50 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now flantastic
 ```
 
+### Enabling TLS (for remote Android/scrcpy)
+A self-signed cert is enough for a private network:
+```bash
+mkdir -p tls
+openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+  -keyout tls/key.pem -out tls/cert.pem -subj "/CN=flantastic"
+TLS_CERT=tls/cert.pem TLS_KEY=tls/key.pem node server.js
+```
+
 ## Security
 
-Because the app is bound to `0.0.0.0`, anyone who can reach the port can
-start/stop your VMs and view their screens. Protect it:
+Because it binds `0.0.0.0`, anyone who can reach the port can control these
+machines and view their screens. Protect it:
 
-- Set **`AUTH_PASSWORD`** (and `AUTH_USER`) to require a login.
-- Better still, keep it on a private network / VPN, or put it behind a
-  reverse proxy with TLS (the VNC WebSocket then upgrades to `wss://`
-  automatically).
+- Set **`AUTH_PASSWORD`** (and `AUTH_USER`).
+- Prefer a private network / VPN, and enable **TLS** so credentials and screens
+  aren't sent in the clear.
+- SSH endpoints use `StrictHostKeyChecking=accept-new` and connection
+  multiplexing; use key-based auth.
 
-## Notes on `tart` VNC
+## Adding more machines
 
-`tart run --vnc-experimental` starts a VNC server bound to the Mac's
-loopback and prints a `vnc://:<password>@<host>:<port>` line. flantastic
-reads that from `~/vnc-<vm>.log` and reaches it through the SSH tunnel — so
-you do **not** need to bind VNC itself to `0.0.0.0` on the Mac. Only this web
-app is exposed remotely.
+Add another object to `endpoints.json` and refresh — no code changes. New Macs,
+iPhones, Proxmox clusters, and Android devices all slot in as endpoints.
+
+## Layout
+
+```
+server.js              HTTP + WebSocket server, routing, config
+lib/ws.js              WebSocket server (RFC 6455) — no deps
+lib/wsclient.js        WebSocket client (used to relay Proxmox consoles)
+lib/http.js            tiny router + static file serving
+lib/ssh.js             system `ssh` wrapper (exec + `-W` tunnel)
+lib/bridge.js          WebSocket <-> byte-stream bridge
+providers/mac.js       tart-over-SSH provider
+providers/vnc.js       generic VNC provider (iPhone, etc.)
+providers/proxmox.js   Proxmox REST + console provider
+providers/android.js   adb + scrcpy provider
+public/                UI, the VNC viewer, the scrcpy viewer
+public/vendor/novnc/   vendored noVNC (MPL-2.0)
+vendor/scrcpy-server-* vendored scrcpy server (Apache-2.0)
+```
+
+## Credits
+
+- [noVNC](https://github.com/novnc/noVNC) — in-browser VNC client (MPL-2.0), vendored under `public/vendor/novnc/`.
+- [scrcpy](https://github.com/Genymobile/scrcpy) — Android mirroring (Apache-2.0); the server binary is vendored under `vendor/`.
