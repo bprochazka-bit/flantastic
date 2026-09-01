@@ -150,6 +150,17 @@ machines and view their screens. Protect it:
 - SSH endpoints use `StrictHostKeyChecking=accept-new` and connection
   multiplexing; use key-based auth.
 
+## Viewer controls (VNC)
+
+The VNC viewer toolbar has:
+
+- **Ctrl+Alt+Del** and a **⌨ Keys** menu that sends special key combinations
+  straight to the remote (bypassing your local OS), grouped for **Windows**
+  (Win, Win+D/E/R/L, Ctrl+Shift+Esc, Alt+F4…), **macOS** (⌘Space, ⌘Tab, ⌘Q,
+  ⌃⌘Q lock, ⌘⇧3/4…), plus common keys and **F1–F12**.
+- **📷 Screenshot** — saves a PNG of the current screen.
+- **⛶ Fullscreen**.
+
 ## Behind a reverse proxy (nginx)
 
 flantastic's screens ride over **WebSockets** (`/ws/…`). A reverse proxy must be

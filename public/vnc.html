@@ -7,26 +7,62 @@
   <style>
     html, body { margin: 0; height: 100%; background: #0f1115; color: #e6e9ef;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    #bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
-      background: #171a21; border-bottom: 1px solid #2a2f3a; }
+    #stage { display: flex; flex-direction: column; height: 100%; }
+    #bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+      background: #171a21; border-bottom: 1px solid #2a2f3a; flex: none; flex-wrap: wrap; }
     #bar .title { font-weight: 600; font-size: 14px; }
     #status { font-size: 13px; color: #8a91a0; }
     #status.ok { color: #3ecf8e; }
     #status.err { color: #ff5c5c; }
-    #screen { width: 100%; height: calc(100% - 41px); background: #000; }
+    .spacer { flex: 1; }
+    #screen { flex: 1; min-height: 0; background: #000; }
     button { background: #1e222b; color: #e6e9ef; border: 1px solid #2a2f3a;
-      border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
-    button:hover { border-color: #4c8dff; }
+      border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    button:hover:not(:disabled) { border-color: #4c8dff; }
+    button:disabled { opacity: .5; cursor: default; }
+
+    /* keys dropdown */
+    .menu-wrap { position: relative; }
+    .menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+      background: #171a21; border: 1px solid #2a2f3a; border-radius: 8px; padding: 10px;
+      width: 320px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+    .menu h4 { margin: 8px 0 6px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: .05em; color: #8a91a0; }
+    .menu h4:first-child { margin-top: 0; }
+    .keys { display: flex; flex-wrap: wrap; gap: 6px; }
+    .keys button { padding: 5px 8px; font-size: 12px; }
+    .keys.fkeys button { padding: 5px 7px; min-width: 34px; text-align: center; }
   </style>
 </head>
 <body>
-  <div id="bar">
-    <span class="title" id="title">VNC</span>
-    <span id="status">connecting…</span>
-    <span style="flex:1"></span>
-    <button id="reconnect">Reconnect</button>
+  <div id="stage">
+    <div id="bar">
+      <span class="title" id="title">VNC</span>
+      <span id="status">connecting…</span>
+      <span class="spacer"></span>
+
+      <button id="cad" title="Ctrl + Alt + Del">Ctrl+Alt+Del</button>
+
+      <span class="menu-wrap">
+        <button id="keys-btn">⌨ Keys ▾</button>
+        <div id="keys-menu" class="menu" hidden>
+          <h4>Common</h4>
+          <div class="keys" data-group="common"></div>
+          <h4>Windows</h4>
+          <div class="keys" data-group="windows"></div>
+          <h4>macOS (⌘ = Command)</h4>
+          <div class="keys" data-group="mac"></div>
+          <h4>Function keys</h4>
+          <div class="keys fkeys" data-group="fkeys"></div>
+        </div>
+      </span>
+
+      <button id="screenshot" title="Save a PNG of the current screen">📷 Screenshot</button>
+      <button id="fullscreen" title="Toggle fullscreen">⛶ Fullscreen</button>
+      <button id="reconnect">Reconnect</button>
+    </div>
+    <div id="screen"></div>
   </div>
-  <div id="screen"></div>
 
   <script type="module" src="/vnc.js"></script>
 </body>
