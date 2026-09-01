@@ -150,6 +150,38 @@ machines and view their screens. Protect it:
 - SSH endpoints use `StrictHostKeyChecking=accept-new` and connection
   multiplexing; use key-based auth.
 
+## Behind a reverse proxy (nginx)
+
+flantastic's screens ride over **WebSockets** (`/ws/…`). A reverse proxy must be
+told to pass the WebSocket upgrade, or connect will hang forever at
+"connecting" while plain HTTP still works. For nginx:
+
+```nginx
+# http { } context, once:
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+
+server {
+    listen 443 ssl;                 # TLS here also gives scrcpy its secure context
+    server_name flan.example;
+    # ssl_certificate ... ; ssl_certificate_key ... ;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;      # <-- the WebSocket upgrade
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_buffering off;                            # don't stall the video streams
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+Caddy (`reverse_proxy 127.0.0.1:8080`) and Traefik upgrade WebSockets
+automatically. If you terminate TLS at the proxy you can drop flantastic's own
+`TLS_CERT`/`TLS_KEY`.
+
 ## Adding more machines
 
 Add another object to `endpoints.json` and refresh — no code changes. New Macs,
