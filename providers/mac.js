@@ -56,9 +56,31 @@ module.exports = {
           name: r.Name,
           state,
           viewer: 'vnc',
-          capabilities: { start: state !== 'running', stop: state === 'running', connect: state === 'running', log: true },
+          capabilities: {
+            start: state !== 'running', stop: state === 'running',
+            connect: state === 'running', native: state === 'running', log: true,
+          },
         };
       });
+  },
+
+  // Connection details for a *native* VNC client (e.g. macOS Screen Sharing),
+  // to escape the browser's keyboard limitations. tart's experimental VNC
+  // binds on all interfaces, so <mac-ip>:<port> is reachable directly on the
+  // LAN; an SSH local-forward is offered as the private alternative.
+  async native(ep, vm) {
+    const info = await readVncUrl(ep, vm);
+    if (!info) throw new Error('VNC not ready yet. Start the VM and wait a few seconds.');
+    const host = ep.host;
+    const sshPortOpt = ep.port && ep.port !== 22 ? ` -p ${ep.port}` : '';
+    const keyOpt = ep.privateKey ? ` -i ${ep.privateKey}` : '';
+    return {
+      address: `${host}:${info.port}`,
+      password: info.password,
+      url: `vnc://:${encodeURIComponent(info.password)}@${host}:${info.port}`,
+      ssh: `ssh -N -L 5901:127.0.0.1:${info.port}${sshPortOpt}${keyOpt} ${ep.username}@${host}`,
+      tunnelAddress: 'localhost:5901',
+    };
   },
 
   async start(ep, vm) {

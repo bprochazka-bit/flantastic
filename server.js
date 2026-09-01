@@ -112,6 +112,19 @@ router.get('/api/endpoints/:eid/items/:iid/connect', async (req, res) => {
   }
 });
 
+// Native VNC client connection details. Only if the provider supports it.
+router.get('/api/endpoints/:eid/items/:iid/native', async (req, res) => {
+  const ep = getEndpoint(req.params.eid);
+  if (!ep) return sendJson(res, 404, { error: 'Unknown endpoint' });
+  const provider = providerFor(ep);
+  if (typeof provider.native !== 'function') return sendJson(res, 404, { error: 'No native VNC for this endpoint type' });
+  try {
+    sendJson(res, 200, await provider.native(ep, req.params.iid));
+  } catch (err) {
+    sendJson(res, 502, { error: err.message });
+  }
+});
+
 // Provider log (e.g. the tart VM log). Only if the provider supports it.
 router.get('/api/endpoints/:eid/items/:iid/log', async (req, res) => {
   const ep = getEndpoint(req.params.eid);

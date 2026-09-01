@@ -86,16 +86,19 @@ function renderItems(grid, endpoint, items) {
     const startBtn = $('.start', node);
     const stopBtn = $('.stop', node);
     const logBtn = $('.log', node);
+    const nativeBtn = $('.native', node);
     const connectBtn = $('.connect', node);
 
     if (!caps.start && !caps.stop) { startBtn.remove(); stopBtn.remove(); }
     else { startBtn.disabled = !caps.start; stopBtn.disabled = !caps.stop; }
     if (!caps.log) logBtn.remove();
+    if (!caps.native) nativeBtn.remove();
     connectBtn.disabled = !caps.connect;
 
     startBtn && startBtn.addEventListener('click', () => act(startBtn, endpoint, it.id, 'start'));
     stopBtn && stopBtn.addEventListener('click', () => act(stopBtn, endpoint, it.id, 'stop'));
     logBtn && logBtn.addEventListener('click', () => showLog(endpoint, it));
+    nativeBtn && nativeBtn.addEventListener('click', () => showNative(endpoint, it));
     connectBtn.addEventListener('click', () => {
       const viewer = it.viewer === 'scrcpy' ? 'scrcpy.html' : 'vnc.html';
       const url = `/${viewer}?eid=${encodeURIComponent(endpoint.id)}&iid=${encodeURIComponent(it.id)}&name=${encodeURIComponent(it.name)}`;
@@ -139,6 +142,62 @@ async function showLog(endpoint, item) {
 }
 $('#modal-close').addEventListener('click', () => (modal.hidden = true));
 modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+
+// --- native VNC client details ---------------------------------------------
+
+async function copyText(value, btn) {
+  try {
+    await navigator.clipboard.writeText(value);
+    const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => (btn.textContent = t), 1200);
+  } catch (_) {
+    // Fallback for non-secure contexts.
+    const ta = document.createElement('textarea'); ta.value = value; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove();
+  }
+}
+
+function field(label, value, { link } = {}) {
+  const wrap = document.createElement('div'); wrap.className = 'nfield';
+  const l = document.createElement('div'); l.className = 'nlabel'; l.textContent = label;
+  const rowEl = document.createElement('div'); rowEl.className = 'nrow';
+  let val;
+  if (link) { val = document.createElement('a'); val.href = value; val.textContent = value; }
+  else { val = document.createElement('code'); val.textContent = value; }
+  val.className = 'nval';
+  const copy = document.createElement('button'); copy.className = 'btn'; copy.textContent = 'Copy';
+  copy.addEventListener('click', () => copyText(value, copy));
+  rowEl.append(val, copy);
+  wrap.append(l, rowEl);
+  return wrap;
+}
+
+async function showNative(endpoint, item) {
+  $('#modal-title').textContent = `VNC client — ${item.name}`;
+  const body = $('#modal-body');
+  body.textContent = 'Loading…';
+  modal.hidden = false;
+  let info;
+  try {
+    info = await api('GET', `/api/endpoints/${encodeURIComponent(endpoint.id)}/items/${encodeURIComponent(item.id)}/native`);
+  } catch (err) {
+    body.textContent = `Could not get connection details: ${err.message}`;
+    return;
+  }
+  body.innerHTML = '';
+  const intro = document.createElement('p');
+  intro.className = 'nnote';
+  intro.textContent = 'Point any VNC client at the address below (on macOS, use the “Open in Screen Sharing” link). The port changes every time the VM starts, so reopen this after a restart.';
+  body.appendChild(intro);
+  body.appendChild(field('Address', info.address));
+  if (info.password) body.appendChild(field('Password', info.password));
+  if (info.url) body.appendChild(field('Open in Screen Sharing (macOS)', info.url, { link: true }));
+  if (info.ssh) {
+    const note = document.createElement('p');
+    note.className = 'nnote';
+    note.textContent = `Private alternative — run this, then connect your VNC client to ${info.tunnelAddress || 'localhost:5901'}:`;
+    body.append(note, field('SSH tunnel', info.ssh));
+  }
+}
 
 async function refreshAll() {
   statusLine.textContent = 'Refreshing…';

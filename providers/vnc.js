@@ -23,7 +23,7 @@ module.exports = {
         name: ep.deviceName || ep.label || ep.host,
         state: 'available',
         viewer: 'vnc',
-        capabilities: { start: false, stop: false, connect: true },
+        capabilities: { start: false, stop: false, connect: true, native: !ep.gateway },
       },
     ];
   },
@@ -33,6 +33,18 @@ module.exports = {
 
   async connectInfo(ep) {
     return { viewer: 'vnc', password: ep.password || '' };
+  },
+
+  // Native client details (only meaningful for directly-reachable endpoints;
+  // gatewayed ones are hidden behind SSH and use the browser viewer).
+  async native(ep) {
+    const port = parseInt(ep.port || '5900', 10);
+    const pw = ep.password ? `:${encodeURIComponent(ep.password)}@` : '';
+    return {
+      address: `${ep.host}:${port}`,
+      password: ep.password || '',
+      url: `vnc://${pw}${ep.host}:${port}`,
+    };
   },
 
   async bridge(ws, ep) {

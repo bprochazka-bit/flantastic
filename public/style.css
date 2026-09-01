@@ -171,3 +171,15 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-si
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.nnote { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+.nfield { margin-bottom: 12px; }
+.nlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); margin-bottom: 4px; }
+.nrow { display: flex; gap: 8px; align-items: center; }
+.nval { flex: 1; background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 10px; overflow-x: auto; white-space: nowrap; }
+a.nval { color: var(--accent); text-decoration: none; }
+a.nval:hover { text-decoration: underline; }
+.nrow .btn { flex: none; }

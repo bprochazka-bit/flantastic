@@ -161,6 +161,13 @@ The VNC viewer toolbar has:
 - **📷 Screenshot** — saves a PNG of the current screen.
 - **⛶ Fullscreen**.
 
+For full keyboard fidelity (all OS shortcuts, no browser sandbox), each VNC
+item also has a **VNC app** button. It shows the address + password for a
+native VNC client, a clickable `vnc://…` link (opens **Screen Sharing** on
+macOS), and an SSH-tunnel command for a private connection. tart's VNC binds
+on all interfaces, so `<mac-ip>:<port>` is reachable directly; the port
+changes every VM start, so reopen it after a restart.
+
 ## Behind a reverse proxy (nginx)
 
 flantastic's screens ride over **WebSockets** (`/ws/…`). A reverse proxy must be
