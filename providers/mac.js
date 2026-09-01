@@ -113,6 +113,7 @@ module.exports = {
     L.info(`connect ${vm}: tunnelling to VNC ${info.host}:${info.port}`);
     const child = ssh.tunnel(ep, info.host, info.port);
     child.on('error', (err) => { L.error(`tunnel ${vm} failed: ${err.message}`); if (ws.readyState === ws.OPEN) ws.close(1011, 'ssh tunnel failed'); });
+    child.stdout.once('data', () => L.info(`connect ${vm}: VNC data flowing (handshake started)`));
     bridgeRaw(ws, child.stdout, child.stdin, () => child.kill());
   },
 };
