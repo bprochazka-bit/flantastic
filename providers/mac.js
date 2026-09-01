@@ -18,6 +18,12 @@ function tartCmd(ep, args) {
 
 const logPath = (vm) => `~/vnc-${vm}.log`;
 
+// A wildcard/empty bind address in the URL isn't a connect target; we always
+// reach the VNC server locally on the Mac (through SSH), so use loopback.
+function normHost(h) {
+  return !h || h === '0.0.0.0' || h === '::' || h === '*' ? '127.0.0.1' : h;
+}
+
 async function readVncUrl(ep, vm) {
   const { stdout } = await ssh.run(ep, `cat ${logPath(vm)} 2>/dev/null || true`);
   const matches = stdout.match(/vnc:\/\/\S+/g);
@@ -25,11 +31,11 @@ async function readVncUrl(ep, vm) {
   const raw = matches[matches.length - 1].trim();
   try {
     const u = new URL(raw);
-    return { host: u.hostname || '127.0.0.1', port: parseInt(u.port || '5900', 10), password: decodeURIComponent(u.password || '') };
+    return { host: normHost(u.hostname), port: parseInt(u.port || '5900', 10), password: decodeURIComponent(u.password || '') };
   } catch (_) {
     const m = raw.match(/vnc:\/\/(?:([^:@]*):?([^@]*)@)?([^:/]+):(\d+)/);
     if (!m) return null;
-    return { host: m[3] || '127.0.0.1', port: parseInt(m[4], 10), password: m[2] || '' };
+    return { host: normHost(m[3]), port: parseInt(m[4], 10), password: m[2] || '' };
   }
 }
 
@@ -58,14 +64,20 @@ module.exports = {
   async start(ep, vm) {
     const bin = ep.tart || 'tart';
     const log = logPath(vm);
-    // Export PATH in the shell *before* nohup (env assignments after `nohup`
-    // are treated as the program name, which was the bug). Truncate the log
-    // first so we only read this run's VNC URL, then background tart. Runs:
-    //   nohup tart run <vm> --no-graphics --vnc-experimental > ~/vnc-<vm>.log 2>&1 &
+    // Two things matter here:
+    //  1. Export PATH in the shell *before* nohup — env assignments after
+    //     `nohup` are treated as the program name (the original start bug).
+    //  2. Run tart under a pseudo-tty via `script`. tart (a Swift program)
+    //     block-buffers stdout when it's a pipe/file, so the `vnc://…` line —
+    //     which carries the port + password we parse — never reaches the log.
+    //     `script` gives it a tty, forcing line-buffering so the URL appears
+    //     promptly. macOS `script -q <file> <cmd...>` mirrors output to stdout.
+    // Truncate the log first so we only read this run's VNC URL. Runs:
+    //   nohup script -q /dev/null tart run <vm> --no-graphics --vnc-experimental > ~/vnc-<vm>.log 2>&1 &
     const cmd =
       `sh -c 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; ` +
       `: > ${log}; ` +
-      `nohup ${bin} run ${vm} --no-graphics --vnc-experimental > ${log} 2>&1 & ` +
+      `nohup script -q /dev/null ${bin} run ${vm} --no-graphics --vnc-experimental > ${log} 2>&1 & ` +
       `echo "flantastic: launched ${vm} (pid $!)"'`;
     const { code, stdout, stderr } = await ssh.run(ep, cmd);
     L.info(`start ${vm}: ${(stdout || stderr).trim() || 'exit ' + code}`);
