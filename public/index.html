@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>flantastic — VM control</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>🖥️ flantastic</h1>
+    <div class="header-actions">
+      <span id="status-line" class="muted"></span>
+      <button id="refresh" class="btn ghost" title="Refresh">↻ Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="error" class="error" hidden></div>
+    <div id="servers"></div>
+    <p id="empty" class="muted" hidden>No Macs configured. Copy <code>servers.example.json</code> to <code>servers.json</code> and add your Macs.</p>
+  </main>
+
+  <template id="server-tpl">
+    <section class="server">
+      <h2 class="server-title"><span class="server-label"></span> <span class="server-host muted"></span></h2>
+      <div class="grid"></div>
+      <p class="server-error error" hidden></p>
+    </section>
+  </template>
+
+  <template id="card-tpl">
+    <div class="card">
+      <div class="card-top">
+        <span class="dot"></span>
+        <span class="name"></span>
+        <span class="state badge"></span>
+      </div>
+      <div class="card-actions">
+        <button class="btn start">Start</button>
+        <button class="btn stop">Stop</button>
+        <button class="btn primary vnc">Connect VNC</button>
+      </div>
+    </div>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>

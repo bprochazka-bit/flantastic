@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VNC — flantastic</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0f1115; color: #e6e9ef;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+      background: #171a21; border-bottom: 1px solid #2a2f3a; }
+    #bar .title { font-weight: 600; font-size: 14px; }
+    #status { font-size: 13px; color: #8a91a0; }
+    #status.ok { color: #3ecf8e; }
+    #status.err { color: #ff5c5c; }
+    #screen { width: 100%; height: calc(100% - 41px); background: #000; }
+    button { background: #1e222b; color: #e6e9ef; border: 1px solid #2a2f3a;
+      border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+    button:hover { border-color: #4c8dff; }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <span class="title" id="title">VNC</span>
+    <span id="status">connecting…</span>
+    <span style="flex:1"></span>
+    <button id="reconnect">Reconnect</button>
+  </div>
+  <div id="screen"></div>
+
+  <script type="module" src="/vnc.js"></script>
+</body>
+</html>
