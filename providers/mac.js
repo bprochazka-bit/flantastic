@@ -113,7 +113,14 @@ module.exports = {
     L.info(`connect ${vm}: tunnelling to VNC ${info.host}:${info.port}`);
     const child = ssh.tunnel(ep, info.host, info.port);
     child.on('error', (err) => { L.error(`tunnel ${vm} failed: ${err.message}`); if (ws.readyState === ws.OPEN) ws.close(1011, 'ssh tunnel failed'); });
-    child.stdout.once('data', () => L.info(`connect ${vm}: VNC data flowing (handshake started)`));
+    // If the VNC server never sends its greeting, don't hang forever — say so.
+    const noData = setTimeout(() => {
+      L.warn(`connect ${vm}: no VNC data from ${info.host}:${info.port} within 8s ` +
+        `— the port may be stale (it changes every 'tart run') or the VNC server isn't serving on loopback`);
+      if (ws.readyState === ws.OPEN) ws.close(1011, 'VNC port not responding');
+    }, 8000);
+    child.stdout.once('data', () => { clearTimeout(noData); L.info(`connect ${vm}: VNC data flowing (handshake started)`); });
+    child.on('close', () => clearTimeout(noData));
     bridgeRaw(ws, child.stdout, child.stdin, () => child.kill());
   },
 };
