@@ -44,10 +44,21 @@
       <div class="card-actions">
         <button class="btn start">Start</button>
         <button class="btn stop">Stop</button>
+        <button class="btn log">Log</button>
         <button class="btn primary connect">Connect</button>
       </div>
     </div>
   </template>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <span id="modal-title">Log</span>
+        <button id="modal-close" class="btn ghost">✕</button>
+      </div>
+      <pre id="modal-body"></pre>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

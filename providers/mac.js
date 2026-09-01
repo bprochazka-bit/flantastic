@@ -7,6 +7,7 @@
 
 const ssh = require('../lib/ssh');
 const { bridgeRaw } = require('../lib/bridge');
+const L = require('../lib/log')('mac');
 
 // tart is usually under Homebrew; a non-interactive ssh shell often lacks it
 // on PATH, so prepend the common locations. Override with endpoint.tart.
@@ -49,25 +50,40 @@ module.exports = {
           name: r.Name,
           state,
           viewer: 'vnc',
-          capabilities: { start: state !== 'running', stop: state === 'running', connect: state === 'running' },
+          capabilities: { start: state !== 'running', stop: state === 'running', connect: state === 'running', log: true },
         };
       });
   },
 
   async start(ep, vm) {
-    const run = tartCmd(ep, `run ${vm} --no-graphics --vnc-experimental`);
-    // Truncate the log first so we only read this run's VNC URL, then:
+    const bin = ep.tart || 'tart';
+    const log = logPath(vm);
+    // Export PATH in the shell *before* nohup (env assignments after `nohup`
+    // are treated as the program name, which was the bug). Truncate the log
+    // first so we only read this run's VNC URL, then background tart. Runs:
     //   nohup tart run <vm> --no-graphics --vnc-experimental > ~/vnc-<vm>.log 2>&1 &
-    const cmd = `sh -lc ': > ${logPath(vm)}; nohup ${run} > ${logPath(vm)} 2>&1 &'`;
-    const { code, stderr } = await ssh.run(ep, cmd);
+    const cmd =
+      `sh -c 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; ` +
+      `: > ${log}; ` +
+      `nohup ${bin} run ${vm} --no-graphics --vnc-experimental > ${log} 2>&1 & ` +
+      `echo "flantastic: launched ${vm} (pid $!)"'`;
+    const { code, stdout, stderr } = await ssh.run(ep, cmd);
+    L.info(`start ${vm}: ${(stdout || stderr).trim() || 'exit ' + code}`);
     if (code !== 0) throw new Error(`Failed to start ${vm}: ${stderr.trim() || 'exit ' + code}`);
-    return { ok: true };
+    return { ok: true, message: stdout.trim() };
   },
 
   async stop(ep, vm) {
-    const { code, stderr } = await ssh.run(ep, tartCmd(ep, `stop ${vm}`));
+    const { code, stderr, stdout } = await ssh.run(ep, tartCmd(ep, `stop ${vm}`));
+    L.info(`stop ${vm}: ${(stderr || stdout).trim() || 'exit ' + code}`);
     if (code !== 0) throw new Error(`Failed to stop ${vm}: ${stderr.trim() || 'exit ' + code}`);
     return { ok: true };
+  },
+
+  // Expose the VM's log (tart output + the vnc:// URL) to the UI.
+  async log(ep, vm) {
+    const { stdout } = await ssh.run(ep, `tail -n 200 ${logPath(vm)} 2>/dev/null || true`);
+    return { text: stdout || '(log is empty — the VM has not been started in this session yet)' };
   },
 
   async connectInfo(ep, vm) {
@@ -78,10 +94,13 @@ module.exports = {
 
   async bridge(ws, ep, vm) {
     const info = await readVncUrl(ep, vm);
-    if (!info) return ws.close(1011, 'VNC not ready');
+    if (!info) {
+      L.warn(`connect ${vm}: no vnc:// URL in log yet`);
+      return ws.close(1011, 'VNC not ready');
+    }
+    L.info(`connect ${vm}: tunnelling to VNC ${info.host}:${info.port}`);
     const child = ssh.tunnel(ep, info.host, info.port);
-    child.stderr.on('data', () => {}); // swallow ssh diagnostics
-    child.on('error', () => ws.readyState === ws.OPEN && ws.close(1011, 'ssh tunnel failed'));
+    child.on('error', (err) => { L.error(`tunnel ${vm} failed: ${err.message}`); if (ws.readyState === ws.OPEN) ws.close(1011, 'ssh tunnel failed'); });
     bridgeRaw(ws, child.stdout, child.stdin, () => child.kill());
   },
 };

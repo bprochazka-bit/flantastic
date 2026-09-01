@@ -85,14 +85,17 @@ function renderItems(grid, endpoint, items) {
     const caps = it.capabilities || {};
     const startBtn = $('.start', node);
     const stopBtn = $('.stop', node);
+    const logBtn = $('.log', node);
     const connectBtn = $('.connect', node);
 
     if (!caps.start && !caps.stop) { startBtn.remove(); stopBtn.remove(); }
     else { startBtn.disabled = !caps.start; stopBtn.disabled = !caps.stop; }
+    if (!caps.log) logBtn.remove();
     connectBtn.disabled = !caps.connect;
 
     startBtn && startBtn.addEventListener('click', () => act(startBtn, endpoint, it.id, 'start'));
     stopBtn && stopBtn.addEventListener('click', () => act(stopBtn, endpoint, it.id, 'stop'));
+    logBtn && logBtn.addEventListener('click', () => showLog(endpoint, it));
     connectBtn.addEventListener('click', () => {
       const viewer = it.viewer === 'scrcpy' ? 'scrcpy.html' : 'vnc.html';
       const url = `/${viewer}?eid=${encodeURIComponent(endpoint.id)}&iid=${encodeURIComponent(it.id)}&name=${encodeURIComponent(it.name)}`;
@@ -109,15 +112,33 @@ async function act(btn, endpoint, iid, action) {
   btn.textContent = action === 'start' ? 'Starting…' : 'Stopping…';
   showError('');
   try {
-    await api('POST', `/api/endpoints/${encodeURIComponent(endpoint.id)}/items/${encodeURIComponent(iid)}/${action}`);
-    setTimeout(() => refreshEndpoint(endpoint), 1500);
-    setTimeout(() => refreshEndpoint(endpoint), 4500);
+    const res = await api('POST', `/api/endpoints/${encodeURIComponent(endpoint.id)}/items/${encodeURIComponent(iid)}/${action}`);
+    if (res && res.message) statusLine.textContent = res.message;
+    // VMs take a few seconds to boot; refresh a few times to catch the state.
+    for (const ms of [1500, 4000, 8000, 13000]) setTimeout(() => refreshEndpoint(endpoint), ms);
   } catch (err) {
     showError(`${action} ${iid}: ${err.message}`);
     btn.textContent = original;
     btn.disabled = false;
   }
 }
+
+// --- log modal --------------------------------------------------------------
+
+const modal = $('#modal');
+async function showLog(endpoint, item) {
+  $('#modal-title').textContent = `Log — ${item.name}`;
+  $('#modal-body').textContent = 'Loading…';
+  modal.hidden = false;
+  try {
+    const res = await api('GET', `/api/endpoints/${encodeURIComponent(endpoint.id)}/items/${encodeURIComponent(item.id)}/log`);
+    $('#modal-body').textContent = res.text || '(empty)';
+  } catch (err) {
+    $('#modal-body').textContent = `Could not load log: ${err.message}`;
+  }
+}
+$('#modal-close').addEventListener('click', () => (modal.hidden = true));
+modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
 
 async function refreshAll() {
   statusLine.textContent = 'Refreshing…';

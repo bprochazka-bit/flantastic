@@ -22,6 +22,7 @@ const path = require('path');
 const crypto = require('crypto');
 const net = require('net');
 const { spawn } = require('child_process');
+const L = require('../lib/log')('android');
 
 const SCRCPY_VERSION = '2.7';
 const SCRCPY_JAR = path.join(__dirname, '..', 'vendor', `scrcpy-server-v${SCRCPY_VERSION}`);
@@ -189,16 +190,18 @@ module.exports = {
     };
 
     try {
+      L.info(`connect ${serial}: pushing scrcpy server`);
       // 1. Push the server binary.
       const push = await adb(ep, ['push', SCRCPY_JAR, DEVICE_JAR], serial);
-      if (push.code !== 0) return done('adb push failed: ' + push.stderr.trim());
+      if (push.code !== 0) { L.error(`adb push failed: ${push.stderr.trim()}`); return done('adb push failed: ' + push.stderr.trim()); }
 
       // 2. Allocate a forwarded port to the scrcpy abstract socket.
       const scid = crypto.randomBytes(4).toString('hex');
       const sockName = `localabstract:scrcpy_${scid}`;
       const fwd = await adb(ep, ['forward', 'tcp:0', sockName], serial);
-      if (fwd.code !== 0) return done('adb forward failed: ' + fwd.stderr.trim());
+      if (fwd.code !== 0) { L.error(`adb forward failed: ${fwd.stderr.trim()}`); return done('adb forward failed: ' + fwd.stderr.trim()); }
       const localPort = parseInt(fwd.stdout.trim(), 10);
+      L.info(`connect ${serial}: forward tcp:${localPort} -> ${sockName}`);
       cleanup.push(() => adb(ep, ['forward', '--remove', `tcp:${localPort}`], serial));
 
       // 3. Start the scrcpy server (tunnel_forward: the client connects in).
@@ -221,9 +224,10 @@ module.exports = {
         'send_codec_meta=true',
         'cleanup=true',
       ];
+      L.info(`connect ${serial}: starting scrcpy server (scid=${scid})`);
       const server = spawn(adbBin(ep), ['-s', serial, ...serverArgs], { stdio: ['ignore', 'pipe', 'pipe'] });
-      server.stdout.on('data', () => {});
-      server.stderr.on('data', () => {});
+      server.stdout.on('data', (d) => L.debug(`scrcpy: ${d.toString().trim()}`));
+      server.stderr.on('data', (d) => L.warn(`scrcpy: ${d.toString().trim()}`));
       cleanup.push(() => { try { server.kill(); } catch (_) {} });
 
       // 4. Connect video socket, then control socket.
@@ -231,11 +235,13 @@ module.exports = {
       cleanup.push(() => videoSock.destroy());
       const controlSock = await connectRetry(localPort, 20);
       cleanup.push(() => controlSock.destroy());
+      L.info(`connect ${serial}: video + control sockets established`);
 
       let width = 0, height = 0;
       const parser = makeVideoParser(
         (meta) => {
           width = meta.width; height = meta.height;
+          L.info(`connect ${serial}: stream ${meta.codec} ${meta.width}x${meta.height} (${meta.name})`);
           if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'meta', ...meta }), false);
         },
         (flags, pts, data) => {
@@ -273,6 +279,7 @@ module.exports = {
       ws.on('close', () => done());
       ws.on('error', () => done());
     } catch (err) {
+      L.error(`connect ${serial} failed: ${err.message || err}`);
       done(String(err.message || err));
     }
   },

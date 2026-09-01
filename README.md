@@ -106,6 +106,20 @@ touch, on-screen keys (Back/Home/Recents), and text input are sent back. Set
 | `AUTH_USER`     | `admin`          | Basic-auth user (only if a password is set). |
 | `AUTH_PASSWORD` | *(unset)*        | If set, the whole app requires HTTP Basic auth. |
 | `TLS_CERT` / `TLS_KEY` | *(unset)* | PEM cert/key paths. If both set, flantastic serves HTTPS (and WebSockets upgrade to `wss://`). |
+| `LOG_LEVEL`     | `info`           | `error` \| `warn` \| `info` \| `debug`. `debug` logs every SSH command, adb step, and Proxmox call. |
+
+## Logging & troubleshooting
+
+flantastic logs to stdout/stderr, so `journalctl -u flantastic -f` (or the
+terminal) shows what it's doing: each API call with status + timing, every SSH
+command and its exit code, adb/scrcpy steps, Proxmox requests, and WebSocket
+connect/close. Set `LOG_LEVEL=debug` for full detail.
+
+In the web UI, Mac VMs have a **Log** button that shows `~/vnc-<vm>.log` on the
+Mac — the tart output plus the `vnc://` URL. If a VM won't start or won't
+connect, check that log first: it usually says exactly why (e.g. the VM name,
+a missing `tart`, or that VNC isn't up yet). The VNC viewer also **waits and
+retries** for ~50s while a VM boots rather than failing immediately.
 
 ### As a systemd service (Debian)
 See [`flantastic.service`](./flantastic.service):

@@ -20,6 +20,7 @@
 const https = require('https');
 const { URL } = require('url');
 const { WSClient } = require('../lib/wsclient');
+const L = require('../lib/log')('proxmox');
 
 // Short-lived console sessions created by connectInfo(), consumed by bridge().
 const sessions = new Map();
@@ -87,7 +88,9 @@ function request(ep, method, apiPath, body, headers) {
       let data = '';
       res.on('data', (d) => (data += d));
       res.on('end', () => {
+        L.debug(`${method} ${apiPath} -> ${res.statusCode}`);
         if (res.statusCode >= 400) {
+          L.warn(`${method} ${apiPath} -> ${res.statusCode} ${data.slice(0, 200)}`);
           return reject(new Error(`Proxmox ${method} ${apiPath} -> ${res.statusCode} ${data.slice(0, 300)}`));
         }
         try { resolve(JSON.parse(data)); } catch (_) { resolve({}); }
@@ -173,6 +176,7 @@ module.exports = {
       `wss://${ep.host}:${ep.port || 8006}/api2/json/nodes/${s.node}/${s.kind}/${s.vmid}` +
       `/vncwebsocket?port=${encodeURIComponent(s.port)}&vncticket=${encodeURIComponent(s.ticket)}`;
 
+    L.info(`console ${s.node}/${s.kind}/${s.vmid}: relaying to Proxmox vncwebsocket (port ${s.port})`);
     const upstream = new WSClient(wsUrl, {
       headers,
       subprotocol: 'binary',

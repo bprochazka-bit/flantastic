@@ -21,6 +21,7 @@ const http = require('http');
 const https = require('https');
 const { Router, sendJson, serveStatic, checkBasicAuth, URL } = require('./lib/http');
 const wsserver = require('./lib/ws');
+const L = require('./lib/log')('http');
 
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = parseInt(process.env.PORT || '8080', 10);
@@ -111,6 +112,19 @@ router.get('/api/endpoints/:eid/items/:iid/connect', async (req, res) => {
   }
 });
 
+// Provider log (e.g. the tart VM log). Only if the provider supports it.
+router.get('/api/endpoints/:eid/items/:iid/log', async (req, res) => {
+  const ep = getEndpoint(req.params.eid);
+  if (!ep) return sendJson(res, 404, { error: 'Unknown endpoint' });
+  const provider = providerFor(ep);
+  if (typeof provider.log !== 'function') return sendJson(res, 404, { error: 'No log for this endpoint type' });
+  try {
+    sendJson(res, 200, await provider.log(ep, req.params.iid));
+  } catch (err) {
+    sendJson(res, 502, { error: err.message });
+  }
+});
+
 // --- server -----------------------------------------------------------------
 
 const useTls = TLS_CERT && TLS_KEY;
@@ -121,6 +135,12 @@ const requestHandler = (req, res) => {
   }
   let u;
   try { u = new URL(req.url, 'http://localhost'); } catch (_) { res.writeHead(400).end(); return; }
+
+  // Log API calls (not static asset noise) with status + duration.
+  if (u.pathname.startsWith('/api/')) {
+    const started = Date.now();
+    res.on('finish', () => L.info(`${req.method} ${u.pathname} -> ${res.statusCode} (${Date.now() - started}ms)`));
+  }
 
   const route = router.match(req.method, u.pathname);
   if (route) {
@@ -153,9 +173,11 @@ server.on('upgrade', (req, socket, head) => {
 
   const ws = wsserver.accept(req, socket);
   if (!ws) return;
+  L.info(`ws connect ${ep.id}[${ep.type}] item=${iid}`);
+  ws.on('close', () => L.info(`ws close ${ep.id} item=${iid}`));
   Promise.resolve()
     .then(() => providerFor(ep).bridge(ws, ep, iid, query))
-    .catch((err) => { try { ws.close(1011, String(err.message || err)); } catch (_) {} });
+    .catch((err) => { L.error(`bridge ${ep.id} item=${iid}: ${err.message || err}`); try { ws.close(1011, String(err.message || err)); } catch (_) {} });
 });
 
 server.listen(PORT, HOST, () => {
