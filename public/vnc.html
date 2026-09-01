@@ -20,6 +20,12 @@
       border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
     button:hover:not(:disabled) { border-color: #4c8dff; }
     button:disabled { opacity: .5; cursor: default; }
+    #mods { display: inline-flex; gap: 4px; }
+    .mod { min-width: 30px; text-align: center; font-size: 14px; }
+    .mod.active { background: #4c8dff; border-color: #4c8dff; color: #fff; }
+    #cmdkey-wrap { font-size: 12px; color: #8a91a0; display: inline-flex; align-items: center; gap: 4px; }
+    #cmdkey { background: #1e222b; color: #e6e9ef; border: 1px solid #2a2f3a;
+      border-radius: 6px; padding: 5px 6px; font-size: 12px; }
 
     /* keys dropdown */
     .menu-wrap { position: relative; }
@@ -41,7 +47,23 @@
       <span id="status">connecting…</span>
       <span class="spacer"></span>
 
+      <span id="mods" title="Sticky modifiers: tap to hold, then type a key; tap again to release">
+        <button class="mod" data-mod="cmd">⌘</button>
+        <button class="mod" data-mod="ctrl">⌃</button>
+        <button class="mod" data-mod="alt">⌥</button>
+        <button class="mod" data-mod="shift">⇧</button>
+      </span>
+
       <button id="cad" title="Ctrl + Alt + Del">Ctrl+Alt+Del</button>
+
+      <label id="cmdkey-wrap" title="Which keysym the guest sees as ⌘ / Win. If ⌘ combos don't work, try another.">⌘/Win=
+        <select id="cmdkey">
+          <option value="super">Super</option>
+          <option value="meta">Meta</option>
+          <option value="alt">Alt/Opt</option>
+          <option value="ctrl">Ctrl</option>
+        </select>
+      </label>
 
       <span class="menu-wrap">
         <button id="keys-btn">⌨ Keys ▾</button>

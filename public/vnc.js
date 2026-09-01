@@ -79,6 +79,23 @@ const K = {
 };
 function fkey(n) { return [0xffbe + (n - 1), 'F' + n]; }
 
+// The keysym the guest recognises as ⌘/Win/GUI varies between VNC servers.
+// Make it selectable ('CMD' in a combo resolves to the current choice).
+const CMD_OPTIONS = {
+  super: [0xffeb, 'MetaLeft'], meta: [0xffe7, 'MetaLeft'],
+  alt: [0xffe9, 'AltLeft'], ctrl: [0xffe3, 'ControlLeft'],
+};
+let cmdKey = 'super';
+try { cmdKey = localStorage.getItem('flan.cmdkey') || 'super'; } catch (_) {}
+const cmdSel = document.getElementById('cmdkey');
+cmdSel.value = cmdKey;
+cmdSel.addEventListener('change', () => {
+  cmdKey = cmdSel.value;
+  try { localStorage.setItem('flan.cmdkey', cmdKey); } catch (_) {}
+  if (rfb) rfb.focus();
+});
+const cmdPair = () => CMD_OPTIONS[cmdKey] || CMD_OPTIONS.super;
+
 const GROUPS = {
   common: [
     ['Esc', [K.esc]], ['Tab', [K.tab]], ['Alt+Tab', [K.alt, K.tab]],
@@ -90,18 +107,55 @@ const GROUPS = {
     ['Ctrl+Shift+Esc', [K.ctrl, K.shift, K.esc]], ['Alt+F4', [K.alt, fkey(4)]],
   ],
   mac: [
-    ['⌘Space', [K.meta, K.space]], ['⌘Tab', [K.meta, K.tab]], ['⌘Q', [K.meta, K.q]],
-    ['⌘W', [K.meta, K.w]], ['⌃⌘Q (lock)', [K.ctrl, K.meta, K.q]],
-    ['⌘⇧3', [K.meta, K.shift, K.d3]], ['⌘⇧4', [K.meta, K.shift, K.d4]],
+    ['⌘Space', ['CMD', K.space]], ['⌘Tab', ['CMD', K.tab]], ['⌘Q', ['CMD', K.q]],
+    ['⌘W', ['CMD', K.w]], ['⌃⌘Q (lock)', [K.ctrl, 'CMD', K.q]],
+    ['⌘⇧3', ['CMD', K.shift, K.d3]], ['⌘⇧4', ['CMD', K.shift, K.d4]],
   ],
   fkeys: Array.from({ length: 12 }, (_, i) => ['F' + (i + 1), [fkey(i + 1)]]),
 };
 
+// Resolve the 'CMD' sentinel to the currently-selected ⌘/Win keysym.
+const resolveKey = (k) => (k === 'CMD' ? cmdPair() : k);
+
 function sendCombo(keys) {
   if (!rfb || !connected) return;
-  for (const [ks, code] of keys) rfb.sendKey(ks, code, true);        // press
-  for (let i = keys.length - 1; i >= 0; i--) rfb.sendKey(keys[i][0], keys[i][1], false); // release
+  const rk = keys.map(resolveKey);
+  for (const [ks, code] of rk) rfb.sendKey(ks, code, true);          // press
+  for (let i = rk.length - 1; i >= 0; i--) rfb.sendKey(rk[i][0], rk[i][1], false); // release
   rfb.focus();
+}
+
+// --- sticky modifiers -------------------------------------------------------
+// Tap to hold a modifier down; type a key (via the real keyboard) to combine;
+// tap again to release. Sidesteps the local OS grabbing ⌘/Win combos, and
+// covers arbitrary shortcuts the preset menu doesn't list.
+const MODS = { ctrl: K.ctrl, alt: K.alt, shift: K.shift };
+const held = new Map(); // name -> [keysym, code] actually pressed
+
+function toggleMod(name, btn) {
+  if (!rfb || !connected) return;
+  if (held.has(name)) {
+    const [ks, code] = held.get(name);
+    rfb.sendKey(ks, code, false);
+    held.delete(name);
+    btn.classList.remove('active');
+  } else {
+    const pair = name === 'cmd' ? cmdPair() : MODS[name];
+    rfb.sendKey(pair[0], pair[1], true);
+    held.set(name, pair);
+    btn.classList.add('active');
+  }
+  rfb.focus();
+}
+
+function releaseAllMods() {
+  for (const [ks, code] of held.values()) { try { rfb && rfb.sendKey(ks, code, false); } catch (_) {} }
+  held.clear();
+  for (const b of document.querySelectorAll('.mod.active')) b.classList.remove('active');
+}
+
+for (const btn of document.querySelectorAll('.mod')) {
+  btn.addEventListener('click', () => toggleMod(btn.dataset.mod, btn));
 }
 
 function buildMenu() {
@@ -149,6 +203,8 @@ document.getElementById('reconnect').addEventListener('click', () => {
 function updateButtons() {
   const on = !!rfb && connected;
   for (const id of ['cad', 'keys-btn', 'screenshot']) document.getElementById(id).disabled = !on;
+  for (const b of document.querySelectorAll('.mod')) b.disabled = !on;
+  if (!on) releaseAllMods();
 }
 
 buildMenu();

@@ -158,6 +158,12 @@ The VNC viewer toolbar has:
   straight to the remote (bypassing your local OS), grouped for **Windows**
   (Win, Win+D/E/R/L, Ctrl+Shift+Esc, Alt+F4…), **macOS** (⌘Space, ⌘Tab, ⌘Q,
   ⌃⌘Q lock, ⌘⇧3/4…), plus common keys and **F1–F12**.
+- **Sticky modifiers** (⌘ ⌃ ⌥ ⇧) — tap to hold a modifier down, type a key on
+  your real keyboard, tap again to release. This produces any shortcut
+  (⌘+anything) and bypasses your local OS grabbing the combo.
+- **⌘/Win = ** selector — different VNC servers map the ⌘/Windows key from
+  different keysyms (Super, Meta, …). If ⌘ shortcuts don't register on the
+  guest, switch this; the choice is remembered.
 - **📷 Screenshot** — saves a PNG of the current screen.
 - **⛶ Fullscreen**.
 
