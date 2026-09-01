@@ -139,6 +139,8 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; font-si
   z-index: 100;
   padding: 24px;
 }
+/* The [hidden] attribute must win over the display:flex above. */
+.modal[hidden] { display: none; }
 .modal-box {
   background: var(--panel);
   border: 1px solid var(--border);
